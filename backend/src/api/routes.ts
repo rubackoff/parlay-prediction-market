@@ -177,7 +177,36 @@ api.get('/resolve', async (req: Request, res: Response) => {
     }
 
     const input = String(req.query.url || req.query.id || '').trim();
-    if (!input) return res.status(400).json({ error: 'url or id or market_id is required' });
+    if (!input) return res.status(400).json({ error: 'url or id or market_id or event_slug is required' });
+    
+    // If input looks like polymarket URL, try to extract slug and search via Polyrouter
+    if (input.includes('polymarket.com/event/')) {
+      try {
+        const match = input.match(/\/event\/([^\/\?]+)/);
+        if (match) {
+          const slug = match[1];
+          const data = await searchV2({ q: slug, platform: 'polymarket', limit: 5 });
+          const items: any[] = Array.isArray((data as any)?.markets) ? (data as any).markets : (Array.isArray((data as any)?.results) ? (data as any).results : []);
+          const m = items.find((x: any) => Array.isArray(x?.metadata?.clobTokenIds) && x.metadata.clobTokenIds.length);
+          if (m) {
+            const clobs: string[] = m.metadata.clobTokenIds;
+            const outcomes = Array.isArray(m?.outcomes) ? m.outcomes : [];
+            const out = {
+              type: 'token' as const,
+              id: String(clobs[0]),
+              hasBook: true,
+              market_id: String(m.platform_id || m.id),
+              clobTokenIds: clobs,
+              outcomes,
+              title: m.title,
+            };
+            rSet(req.query, out);
+            return res.json(out);
+          }
+        }
+      } catch (_) {}
+    }
+    
     const out = await resolveClobId(input);
     rSet(req.query, out);
     res.json(out);
