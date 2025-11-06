@@ -69,5 +69,11 @@
 
 ## Заметки
 - `tid` из UI Polymarket ≠ CLOB `token_id`. Используем Polyrouter `metadata.clobTokenIds`.
-- Держим лимит Polyrouter: 10 req/min. Будет добавлен кэш/бекофф.
+- Держим лимит Polyrouter: 10 req/min. Добавлен кэш/rate limiter.
 - Для нестандартных событий включён HTML‑fallback в резолвере.
+
+## GitHub & Deployment
+- Репозиторий: https://github.com/rubackoff/parlay-prediction-market
+- Backend деплой: Render (Blueprint из render.yaml)
+- Frontend деплой: Netlify (base: frontend, build: npm ci && npm run build, publish: dist)
+- См. README.md для пошаговых инструкций
