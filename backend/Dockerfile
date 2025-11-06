@@ -1,15 +1,18 @@
 # syntax=docker/dockerfile:1
-FROM node:20-alpine AS base
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install dependencies
+# Copy package files
 COPY package*.json ./
-RUN npm ci --omit=dev
 
-# Build
+# Install ALL dependencies (including devDependencies for TypeScript compilation)
+RUN npm ci
+
+# Copy source files
 COPY tsconfig.json ./
 COPY src ./src
-ENV NODE_ENV=production
+
+# Build TypeScript
 RUN npm run build
 
 # Runtime image
@@ -18,9 +21,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3002
 
-# Copy built files and minimal runtime deps
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/dist ./dist
+# Copy package files and install production dependencies only
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3002
 CMD ["node", "dist/index.js"]
