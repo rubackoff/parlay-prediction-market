@@ -5,9 +5,8 @@ services:
     plan: free
     autoDeploy: true
     region: oregon
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: ..
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     envVars:
       - key: PORT
         value: 3002
