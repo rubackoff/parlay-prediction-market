@@ -1,0 +1,880 @@
+
+╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                        ПАРЛЕЙ PREDICTION MARKET: ФИНАЛЬНАЯ СПЕЦИФИКАЦИЯ ПРОДУКТА                                     ║
+║                              И ДЕТАЛЬНЫЙ ПЛАН РАЗРАБОТКИ MVP                                                          ║
+╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ РАЗДЕЛ 1: ФИНАЛЬНАЯ АРХИТЕКТУРА ПРОДУКТА                                                                              ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+CORE FUNCTIONALITY:
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+1. ПАРЛЕЙ МЕХАНИКА
+   ├─ 2-5 leg parlays (в MVP: только 2-3 leg)
+   ├─ Ковариация-adjusted коэффициенты
+   ├─ Real-time probability updates из Polymarket
+   └─ Auto-hedging на Polymarket для tail risk
+
+2. ВЫХОД ИЗ ПОЗИЦИИ (EXIT MECHANISM)
+   ├─ Hybrid AMM + Orderbook
+   ├─ LMSR-based AMM с configurable liquidity parameter
+   ├─ Smart router для price optimization
+   ├─ Instant settlement через USDC
+   └─ Real-time fair value pricing
+
+3. ЛИКВИДНОСТЬ И КАПИТАЛ
+   ├─ Flow-matching система (вместо HLP)
+   ├─ Polymarket hedging integration
+   ├─ Insurance fund из 10% комиссий
+   └─ Dynamic fee structure (0.5%-2.5%)
+
+4. ПОЛЬЗОВАТЕЛЬСКИЙ ОПЫТ
+   ├─ Прямая интеграция с Polymarket (API)
+   ├─ Real-time odds calculator
+   ├─ Position tracking dashboard
+   ├─ Performance leaderboard
+   └─ Mobile-ready UI (Vue.js + Tailwind)
+
+5. РИСК МЕНЕДЖМЕНТ
+   ├─ Smart contract audited functions only
+   ├─ Emergency pause mechanism
+   ├─ Position limits ($10k per user in MVP)
+   ├─ Slippage protection
+   └─ Insurance fund for tail events
+
+
+ТЕХНИЧЕСКИЙ СТЕК:
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Smart Contracts (Solidity):
+  • ParlayToken.sol (ERC-1155, parlay tokenization)
+  • ParlayAMM.sol (LMSR AMM implementation)
+  • ParlayOrderbook.sol (CLOB market)
+  • ParlayRouter.sol (smart order routing)
+  • ParlayHedger.sol (Polymarket integration)
+  • ParlayInsurance.sol (insurance fund management)
+
+Backend:
+  • Node.js + TypeScript
+  • Ethers.js for blockchain interaction
+  • Polymarket API integration
+  • Oracle price feeds (Chainlink)
+  • WebSocket для real-time updates
+
+Frontend:
+  • Vue.js 3 (Vite)
+  • Tailwind CSS
+  • Ethers.js + wagmi for wallet connection
+  • TradingView Lightweight Charts (orderbook visualization)
+  • Recharts (analytics)
+
+Infrastructure:
+  • Base Sepolia testnet (MVP)
+  • RPC: Alchemy API (with rate limiting)
+  • IPFS for event metadata
+  • Firebase для user data (non-custodial)
+  • Vercel deployment
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ РАЗДЕЛ 2: ДЕТАЛЬНЫЙ MVP ПЛАН РАЗРАБОТКИ (12 НЕДЕЛЬ)                                                                  ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+WEEK 1-2: ФУНДАМЕНТ И SMART CONTRACTS
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 1.1: Project setup
+   • Foundry/Hardhat project structure
+   • OpenZeppelin integration
+   • Base Sepolia configuration
+   Deliverable: Repo with working build pipeline
+
+✓ TASK 1.2: ParlayToken.sol (ERC-1155)
+   • Standard ERC-1155 implementation
+   • Parlay metadata storage
+   • Safe transfer hooks
+   Spec:
+     ```solidity
+     struct ParlayPosition {
+         address[] baseMarkets;    // Polymarket addresses
+         bool[] outcomes;          // YES=true, NO=false
+         uint256 potentialPayout;  // final payout
+         uint256 expiryTime;       // latest resolution
+     }
+
+     function mintParlay(
+         address[] memory baseMarkets,
+         bool[] memory outcomes,
+         uint256 stake
+     ) external returns (uint256 tokenId);
+
+     function resolveParlay(uint256 tokenId) external returns (uint256 payout);
+     ```
+
+✓ TASK 1.3: ParlayAMM.sol (LMSR)
+   • Logarithmic Market Scoring Rule implementation
+   • Constant product formula: C(q) = b * ln(exp(q_yes/b) + exp(q_no/b))
+   • Price discovery mechanism
+   Spec:
+     ```solidity
+     uint256 constant LIQUIDITY_PARAM = 50000e18;  // $50k
+
+     function getSellPrice(
+         uint256 tokenId,
+         uint256 quantity
+     ) external view returns (uint256 price);
+
+     function sellToAMM(
+         uint256 tokenId,
+         uint256 quantity
+     ) external returns (uint256 proceeds);
+     ```
+
+✓ TASK 1.4: Basic testing
+   • Unit tests for ParlayToken
+   • Unit tests for ParlayAMM
+   • Integration tests
+   Coverage target: >90%
+
+
+WEEK 3-4: ОРДЕРБУК И ROUTING
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 2.1: ParlayOrderbook.sol (CLOB)
+   • Limit order book implementation
+   • Order matching engine (price-time priority)
+   • Partial fills support
+   Spec:
+     ```solidity
+     struct Order {
+         uint256 orderId;
+         uint256 tokenId;
+         address trader;
+         bool isBuy;
+         uint256 price;
+         uint256 quantity;
+     }
+
+     mapping(uint256 => Order) public orders;
+     mapping(uint256 => uint256[]) public bids;   // [orderId]
+     mapping(uint256 => uint256[]) public asks;   // [orderId]
+
+     function placeBid(
+         uint256 tokenId,
+         uint256 price,
+         uint256 quantity
+     ) external returns (uint256 orderId);
+
+     function placeAsk(
+         uint256 tokenId,
+         uint256 price,
+         uint256 quantity
+     ) external returns (uint256 orderId);
+     ```
+
+✓ TASK 2.2: ParlayRouter.sol
+   • Smart routing logic
+   • Bid/ask aggregation
+   • Order splitting algorithm
+   Spec:
+     ```solidity
+     function sellParlay(
+         uint256 tokenId,
+         uint256 quantity,
+         uint256 minPrice
+     ) external returns (uint256 actualPrice, uint256 received);
+
+     // Returns best execution across both venues
+     function getBestPrice(
+         uint256 tokenId,
+         uint256 quantity
+     ) external view returns (uint256 ammPrice, uint256 bestBid);
+     ```
+
+✓ TASK 2.3: Integration testing
+   • Router vs AMM pricing
+   • Order matching correctness
+   • Fee distribution
+
+
+WEEK 5-6: POLYMARKET INTEGRATION
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 3.1: ParlayHedger.sol
+   • Polymarket position tracking
+   • Automatic hedge triggers
+   • Hedge position management
+   Spec:
+     ```solidity
+     struct HedgePosition {
+         address[] polymarketMarkets;
+         uint256[] polymarketShares;
+         bool[] hedgeOutcomes;         // YES=true for NO shares
+     }
+
+     function createHedge(
+         uint256[] memory polymarketMarkets,
+         uint256[] memory amounts
+     ) external;
+
+     function rebalanceHedge(
+         uint256 tokenId
+     ) external;
+     ```
+
+✓ TASK 3.2: Backend API integration
+   • Polymarket REST API wrapper
+   • Price data aggregation
+   • Oracle data fetching
+   Endpoints:
+     • GET /api/markets - list Polymarket markets
+     • GET /api/market/:id/price - get current price
+     • GET /api/market/:id/orderbook - get depth
+     • POST /api/hedge/check - check if hedging needed
+
+✓ TASK 3.3: Fair value calculator
+   • Real-time probability aggregation
+   • Covariance adjustment
+   • Fair value computation for any parlay
+   ```typescript
+   interface FairValueRequest {
+       baseMarkets: string[];  // Polymarket IDs
+       outcomes: boolean[];    // YES/NO for each
+   }
+
+   function calculateFairValue(req: FairValueRequest): {
+       fairValue: number;
+       probability: number;
+       odds: number;
+   }
+   ```
+
+
+WEEK 7-8: FRONTEND MVP
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 4.1: Vue.js app setup
+   • Vite project with TypeScript
+   • Tailwind CSS configuration
+   • Wagmi wallet integration
+   • Base Sepolia network configuration
+
+✓ TASK 4.2: Parlay builder UI
+   • Market selection interface
+   • Outcome selection (YES/NO)
+   • Odds calculator display
+   • Stake input & validation
+   Features:
+     - Add/remove markets
+     - Real-time odds updates
+     - Covariance factor display
+     - Fee breakdown
+
+✓ TASK 4.3: Position manager
+   • Current positions list
+   • Exit button (sell parlay)
+   • Real-time fair value display
+   • Performance metrics
+   Features:
+     - Filter by status (active/resolved/won/lost)
+     - Sort by return %
+     - Show P&L
+     - Show resolution time
+
+✓ TASK 4.4: Orderbook visualization
+   • Bids/asks depth chart
+   • Trade history table
+   • Mid-price indicator
+   • Spread visualization
+
+✓ TASK 4.5: User dashboard
+   • Total portfolio value
+   • Win/loss ratio
+   • Total volume
+   • Leaderboard (top performers)
+
+
+WEEK 9-10: TESTING & SECURITY
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 5.1: Comprehensive testing
+   • End-to-end tests (place parlay → sell → resolution)
+   • Stress tests (many parlays simultaneously)
+   • Edge cases (extreme volatility, quick resolution)
+   • Fork testing against Base mainnet state
+
+✓ TASK 5.2: Security review
+   • Manual code review of all smart contracts
+   • Common vulnerability scan (Slither, MythX)
+   • Reentrancy checks
+   • Integer overflow/underflow (Solidity 0.8+, checked)
+   • Authorization/permission issues
+
+✓ TASK 5.3: Gas optimization
+   • Optimize LMSR calculation
+   • Batch operations where possible
+   • Storage layout optimization
+   Target: <200k gas for complex transactions
+
+✓ TASK 5.4: Testnet deployment
+   • Deploy to Base Sepolia
+   • Verify contracts on Basescan
+   • Fund with testnet ETH via faucet
+   • Setup monitoring/alerting
+
+
+WEEK 11: DOCUMENTATION & DEMO
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 6.1: Technical documentation
+   • Smart contract API documentation (natspec)
+   • Architecture diagrams
+   • Data flow diagrams
+   • Deployment guide
+
+✓ TASK 6.2: User guide
+   • How to place a parlay
+   • How to exit a position
+   • Fees explained
+   • FAQ
+
+✓ TASK 6.3: Live demo
+   • Create test accounts
+   • Demonstrate complete flow
+   • Show orderbook trading
+   • Show position resolution
+
+✓ TASK 6.4: Bug bounty setup
+   • Create issue template
+   • Set up responsible disclosure
+   • Document known limitations
+
+
+WEEK 12: LAUNCH & MONITORING
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+✓ TASK 7.1: Soft launch
+   • Launch to Discord community
+   • Recruit beta testers (50-100 users)
+   • Testnet ETH distribution
+   • Position size limits ($10k max)
+
+✓ TASK 7.2: Monitoring setup
+   • Contract event logging
+   • User transaction tracking
+   • Error alerting
+   • Performance metrics dashboard
+
+✓ TASK 7.3: Feedback collection
+   • User feedback form
+   • Community discussion channels
+   • Weekly metrics report
+
+✓ TASK 7.4: Iterate & refine
+   • Fix bugs found by community
+   • Optimize based on usage patterns
+   • Plan for mainnet deployment
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ РАЗДЕЛ 3: SMART CONTRACT PROMPTS ДЛЯ VIBE CODING                                                                       ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+Следуйте правилам из исследования Audita:
+  1. Используйте Solidity (отличная поддержка LLM)
+  2. Используйте OpenZeppelin стандарты
+  3. Будьте экстремально специфичны в промптах
+  4. Предоставьте pseudocode/flowcharts
+  5. Любой код ДОЛЖЕН быть аудирован перед mainnet
+
+
+PROMPT 1: ParlayToken.sol
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Create a Solidity smart contract implementing ERC-1155 token standard for parlay positions on Base mainnet. 
+Requirements:
+
+STRUCTURE:
+- Inherit from OpenZeppelin's ERC1155
+- Use Ownable for access control
+- Use ReentrancyGuard for safety
+
+DATA:
+Each parlay token represents a unique combination of events:
+- baseMarkets: array of Polymarket contract addresses
+- outcomes: array of booleans (true=YES, false=NO)
+- potentialPayout: max winnings if all events correct
+- expiryTimestamp: when all events must resolve by
+- covarianceData: hash of correlation adjustment data
+
+FUNCTIONS:
+1. mintParlay(baseMarkets[], outcomes[], stake) → tokenId
+   - Creates new parlay token
+   - Takes USDC as collateral
+   - Returns unique ERC-1155 token ID
+   - Emits ParlayCreated(tokenId, baseMarkets, outcomes, payout)
+
+2. resolveParlay(tokenId) → payout
+   - Only callable by admin
+   - Checks all base markets resolved
+   - If all outcomes correct: payout = potentialPayout
+   - If any wrong: payout = 0
+   - Burns token after resolution
+
+3. getFairValue(tokenId) → uint256
+   - View function
+   - Returns current market value if exited early
+   - Based on remaining probability
+
+SAFETY:
+- Check expiry before allowing exit
+- Verify amounts > 0
+- Prevent double resolution
+- Use SafeTransferLib for token transfers
+
+REFERENCE: Look at how Uniswap v4 implements token positions as ERC-1155
+
+Generate fully working contract with detailed comments.
+
+
+PROMPT 2: ParlayAMM.sol
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Create an Automated Market Maker (AMM) for parlay trading using Logarithmic Market Scoring Rule (LMSR).
+
+SPECIFICATION:
+This AMM allows users to sell/buy parlay tokens using a mathematical pricing function.
+
+MATHEMATICAL MODEL:
+Cost function: C(q) = b * ln(exp(q_yes/b) + exp(q_no/b))
+Where:
+- b = liquidity parameter (immutable, set to 50000e18 for MVP)
+- q_yes = cumulative quantity of YES outcomes
+- q_no = cumulative quantity of NO outcomes
+
+Price to sell tokens:
+P = C(current_q) - C(current_q + delta_q)
+Simplified approximation:
+P ≈ Fair_Value * (1 - (delta_q/b) * alpha)
+Where alpha = 1.5 (slippage multiplier)
+
+Pool management:
+- Pool tracks YESshares and NOshares separately
+- Always maintains invariant: x*y=k style balance
+- 0.3% trading fee on all sales
+
+IMPLEMENTATION:
+1. State variables:
+   - liquidity parameter b (constant)
+   - pools: mapping(tokenId → Pool)
+   - feeAccumulator: total fees collected
+
+   struct Pool {
+       uint256 yesShares;
+       uint256 noShares;
+       uint256 lastUpdated;
+   }
+
+2. Functions:
+   - getSellPrice(tokenId, quantity) → price (view)
+   - sellToAMM(tokenId, quantity) → proceeds (executes, takes 0.3% fee)
+   - getBuyPrice(tokenId, quantity) → price (view)
+   - buyFromAMM(tokenId, quantity) → cost (executes)
+   - addLiquidity(tokenId, amount) → lpTokens (optional for MVP)
+
+3. Safety features:
+   - Slippage bounds (max 50% loss)
+   - Price impact display
+   - Prevent zero trades
+   - Fee collection tracking
+
+USE COMPOUND'S INTEREST RATE MODEL AS REFERENCE for similar pricing math.
+
+Generate complete contract with numerical stability for Solidity fixed-point math.
+
+
+PROMPT 3: ParlayOrderbook.sol
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Create a Central Limit Order Book (CLOB) smart contract for peer-to-peer parlay trading.
+
+SPECIFICATION:
+- Supports limit BUY and SELL orders
+- Price-time priority matching
+- Partial fill execution
+- 0.2% maker fee, 0.3% taker fee
+
+DATA STRUCTURES:
+struct Order {
+    uint256 orderId;
+    address trader;
+    uint256 tokenId;
+    bool isBuy;              // true=bid, false=ask
+    uint256 price;           // USDC per token
+    uint256 quantity;
+    uint256 quantityFilled;
+    uint256 timestamp;
+    bool active;
+}
+
+- bids[tokenId]: sorted array of bid orders (highest first)
+- asks[tokenId]: sorted array of ask orders (lowest first)
+
+FUNCTIONS:
+1. placeBid(tokenId, price, quantity) → orderId
+   - User wants to BUY parlay at price
+   - Escrow USDC required for full order
+   - Try to match immediately
+   - If unmatched, add to orderbook
+
+2. placeAsk(tokenId, price, quantity) → orderId
+   - User wants to SELL parlay at price
+   - Lock parlay tokens in escrow
+   - Try to match immediately
+   - If unmatched, add to orderbook
+
+3. cancelOrder(orderId)
+   - Only by original trader
+   - Return escrowed tokens/USDC
+
+4. getOrderBook(tokenId) → {bids[], asks[], spread}
+   - View current market depth
+
+5. getBestBid(tokenId) → price
+   - Highest price someone will buy at
+
+6. getBestAsk(tokenId) → price
+   - Lowest price someone will sell at
+
+MATCHING ENGINE:
+- When new order comes in, match against opposite side
+- Use price-time priority: better price first, older orders first
+- Partial fills allowed
+- Stop when price crosses
+
+EXAMPLE EXECUTION:
+State: Bids=[($163, 5), ($162, 10)]  Asks=[($165, 3), ($166, 4)]
+User places: sellAsk($163.50, 2)
+Match: 2 tokens sold to highest bid at $163 each
+Remaining: 0 filled, order done
+
+REFERENCE: Look at how dYdX or 0x implement orderbook matching logic
+
+Generate contract with optimized gas usage for order array management.
+
+
+PROMPT 4: ParlayRouter.sol
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Create a smart router contract that finds best execution for selling parlay tokens.
+
+SPECIFICATION:
+Router integrates ParlayAMM and ParlayOrderbook, routing orders to best venue.
+
+LOGIC:
+When user sells parlay:
+1. Query AMM for price on full quantity
+2. Query Orderbook for best bid
+3. If (best_bid > amm_price) AND (best_bid >= user_min_price):
+     → Sell to orderbook (better price!)
+4. Else if (amm_price >= user_min_price):
+     → Sell to AMM (guaranteed)
+5. Else:
+     → Revert ("Price too low")
+
+ADVANCED: Order splitting
+If orderbook has partial liquidity:
+- Sell first N tokens to orderbook at best_bid
+- Sell remaining to AMM
+- Return weighted average price
+
+FUNCTIONS:
+1. sellParlay(tokenId, quantity, minPrice) → (actualPrice, received)
+   - Main function for user
+   - Returns actual execution price and proceeds
+
+2. getBestExecutionPrice(tokenId, quantity) → price
+   - View function
+   - Returns best available price
+
+3. queryAmmPrice(tokenId, quantity) → price
+   - View only
+
+4. queryOrderbookBid(tokenId) → price
+   - View only
+
+SAFETY:
+- Check minPrice before execution
+- Handle case where both venues have no liquidity
+- Slippage protection
+- Reentrancy guard
+
+Generate router contract that optimizes for gas efficiency and accurate price discovery.
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ РАЗДЕЛ 4: ФРОНТЕНД КОМПОНЕНТЫ И РАЗВЕРТЫВАНИЕ                                                                        ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+FRONTEND ARCHITECTURE:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+/src
+├── components/
+│   ├── ParleyBuilder/
+│   │   ├── MarketSelector.vue     # Select from top Polymarket markets
+│   │   ├── OutcomeSelector.vue    # Choose YES/NO for each market
+│   │   ├── OddsDisplay.vue        # Show final parlay odds + covariance adjustment
+│   │   └── StakeInput.vue         # Input stake amount
+│   ├── PositionManager/
+│   │   ├── PositionsList.vue      # All user positions with P&L
+│   │   ├── ExitButton.vue         # Sell position button
+│   │   ├── FairValueDisplay.vue   # Show current market value
+│   │   └── ResolutionProgress.vue # Timeline showing when markets resolve
+│   ├── OrderbookViewer/
+│   │   ├── DepthChart.vue         # Visualize bid/ask depth
+│   │   ├── TradeHistory.vue       # Recent trades table
+│   │   └── OrderbookTable.vue     # Detailed bids/asks
+│   └── Common/
+│       ├── WalletConnect.vue      # Connect MetaMask/etc via Wagmi
+│       ├── LoadingSpinner.vue
+│       └── ErrorAlert.vue
+├── pages/
+│   ├── Dashboard.vue              # Main homepage with leaderboard
+│   ├── Builder.vue                # Parlay creation page
+│   ├── Positions.vue              # My positions page
+│   └── Markets.vue                # Browse markets page
+├── stores/
+│   ├── user.ts                    # User positions, balances
+│   ├── markets.ts                 # Market data from Polymarket API
+│   ├── contracts.ts               # Smart contract instances
+│   └── trading.ts                 # Order/trade data
+├── hooks/
+│   ├── usePolymartketAPI.ts       # Fetch market data
+│   ├── useContractInteraction.ts  # Call smart contracts
+│   ├── useFairValueCalc.ts        # Calculate fair value
+│   └── useOrderRouting.ts         # Route to best venue
+├── utils/
+│   ├── ethers.ts                  # Ethers setup + providers
+│   ├── prices.ts                  # Price formatting
+│   ├── odds.ts                    # Odds calculation
+│   └── polymarket-api.ts          # API wrapper
+└── assets/
+    ├── fonts/
+    └── icons/
+
+
+KEY FRONTEND FEATURES:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+1. Parlay Builder
+   - Search/filter markets by name or ID
+   - Click to add to cart
+   - Drag to reorder
+   - Real-time odds update as you add
+   - Fee breakdown display
+   - Smart contracts button
+
+2. Odds Calculator
+   - Show naive odds (independence)
+   - Show adjusted odds (with covariance)
+   - Show fair value at different amounts
+   - Show user return if all correct
+
+3. Position Manager
+   - Table with columns: Market1, Market2, Stake, Current Value, P&L %, Expiry, Actions
+   - Filter by: Active, Won, Lost, Expired
+   - Sort by: P&L %, Expiry Time
+   - Color coding: Green=profit, Red=loss
+   - Export CSV with positions
+
+4. Exit Interface
+   - Click "Sell Now" shows real-time AMM quote
+   - Click "Order Book" shows bid orders
+   - "Best Price" button uses smart router
+   - "Slippage Protection" with user-set min price
+   - Confirmation dialog showing exact USDC to receive
+
+5. Leaderboard
+   - User rank by total P&L
+   - User rank by win rate
+   - User rank by largest single win
+   - Filter by timeframe (1week, 1month, all-time)
+   - User card: name, avatar, stats
+
+6. Dashboard
+   - Total portfolio value (TVL)
+   - Win/loss ratio
+   - Total volume traded
+   - Recent activity feed
+   - Quick stats
+
+
+DEPLOYMENT TO BASE SEPOLIA:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Setup Environment Variables (.env.example)
+```
+VITE_RPC_URL=https://sepolia.base.org
+VITE_CHAIN_ID=84532
+VITE_POLYMARKET_API=https://clob.polymarket.com
+VITE_CONTRACT_PARLAY_TOKEN=0x...
+VITE_CONTRACT_AMM=0x...
+VITE_CONTRACT_ORDERBOOK=0x...
+VITE_CONTRACT_ROUTER=0x...
+VITE_USDC_ADDRESS=0x...  # USDC on Base Sepolia
+VITE_ALCHEMY_API_KEY=...
+```
+
+STEP 2: Deploy Smart Contracts
+```bash
+# Using Foundry (recommended for Solidity)
+cd contracts/
+forge build
+forge test
+
+# Deploy to Base Sepolia
+forge create --rpc-url https://sepolia.base.org   --private-key $PRIVATE_KEY   src/ParlayToken.sol:ParlayToken   --constructor-args <args>
+
+# Verify on Basescan
+forge verify-contract 0x... src/ParlayToken.sol:ParlayToken
+```
+
+STEP 3: Setup Frontend
+```bash
+npm install
+npm run build
+
+# Environment
+cp .env.example .env
+# Fill in contract addresses from deployment
+
+# Local test
+npm run dev
+
+# Deploy to Vercel
+vercel --prod
+```
+
+STEP 4: Configure RPC and Faucets
+- Add RPC endpoint to app
+- Setup testnet ETH faucet access for beta testers
+- Configure USDC mock token for testing
+  → Can use this: 0x1c7D4B196Cb0C6f48415470d3ad3B9536FC9cC81 (test USDC on Base Sepolia)
+
+STEP 5: Setup Monitoring
+- Connect to Etherscan API for real-time events
+- Setup Sentry for error tracking
+- Configure Datadog/New Relic for performance monitoring
+- Create dashboard showing:
+  - Total TVL
+  - Daily active users
+  - Total volume
+  - Average position size
+  - Exit execution price vs fair value
+
+
+TESTING DEPLOYMENT:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Manual Testing Checklist:
+1. ✓ Create parlay with 2 different markets
+2. ✓ Verify fair value updates as market prices change
+3. ✓ Sell parlay through AMM
+4. ✓ Sell parlay through Orderbook
+5. ✓ Test emergency pause function
+6. ✓ Test position limits (max $10k)
+7. ✓ Verify fees are collected correctly
+8. ✓ Test market resolution and payout
+9. ✓ Test with extreme volatility (manual price updates)
+10. ✓ Test with high gas prices
+
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ РАЗДЕЛ 5: ПОЭТАПНЫЙ ЗАПУСК И МИГРАЦИЯ                                                                                 ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+PHASE 1: TESTNET MVP (CURRENT)
+─────────────────────────────────
+Duration: Weeks 1-12
+- 2-leg parlays only
+- Limited markets (5 top Polymarket markets)
+- Position limit: $10k per user
+- Manual hedging review
+- Beta testers: 50-100 users
+- Testnet ETH distribution via faucet
+- Focus: Test mechanics, gather feedback
+
+Key Metrics to Track:
+- User acquisition
+- Average parlay size
+- Cash-out rate (%)
+- Platform uptime
+- Smart contract gas usage
+- Fair value accuracy
+
+PHASE 2: TESTNET EXPANSION (WEEKS 13-16)
+─────────────────────────────────────────
+- 3-5 leg parlays
+- 50+ markets
+- Auto hedging
+- Position limit: $50k per user
+- Community feedback iteration
+- Performance optimization
+
+PHASE 3: MAINNET PREPARATION (WEEKS 17-20)
+────────────────────────────────────────────
+- Smart contract audit (Certik/OpenZeppelin)
+- Formal verification of core functions
+- Insurance fund setup ($500k initial)
+- Governance token design (if needed)
+- Regulatory review
+- Mainnet liquidity bootstrapping
+
+PHASE 4: MAINNET LAUNCH (WEEK 21+)
+───────────────────────────────────
+- Unlimited leg count
+- Unlimited markets
+- Full feature set
+- Real USDC (not mock)
+- Professional market making
+- Expansion to other chains
+
+
+RISK MITIGATIONS:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+1. Smart Contract Risk:
+   ✓ Comprehensive unit + integration testing
+   ✓ Formal audit by reputable firm
+   ✓ Emergency pause/withdraw functions
+   ✓ Insurance fund from fees
+   ✓ Gradual TVL increase
+
+2. Oracle Risk:
+   ✓ Use Polymarket data (already vetted)
+   ✓ Chainlink for critical data
+   ✓ Manual override capability
+   ✓ Circuit breakers on extreme moves
+
+3. Liquidity Risk:
+   ✓ Hybrid AMM + orderbook (guaranteed liquidity)
+   ✓ Polymarket auto-hedging
+   ✓ LP incentives
+   ✓ Flow-matching instead of HLP
+
+4. Operational Risk:
+   ✓ Multi-sig admin functions
+   ✓ Testnet learning phase
+   ✓ Gradual expansion
+   ✓ Community monitoring
+
+5. Regulatory Risk:
+   ✓ Start in non-US jurisdictions
+   ✓ Transparent communication
+   ✓ Compliance with local laws
+   ✓ KYC integration (if required)

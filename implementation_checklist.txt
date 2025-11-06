@@ -1,0 +1,448 @@
+
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                       MVP IMPLEMENTATION CHECKLIST & REPOSITORY SETUP                                                 ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+RECOMMENDED GITHUB REPOSITORY STRUCTURE:
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+parlay-prediction-market/
+│
+├── README.md                      # Project overview, quick start
+├── ARCHITECTURE.md                # System design, data flows
+├── CONTRIBUTING.md                # Contributing guidelines
+├── LICENSE                        # MIT or Apache 2.0
+├── .gitignore
+│
+├── contracts/                     # Smart contracts (Solidity)
+│   ├── foundry.toml               # Foundry configuration
+│   ├── Makefile                   # Common commands
+│   ├── package.json
+│   ├── src/
+│   │   ├── ParlayToken.sol
+│   │   ├── ParlayAMM.sol
+│   │   ├── ParlayOrderbook.sol
+│   │   ├── ParlayRouter.sol
+│   │   ├── ParlayHedger.sol
+│   │   ├── ParlayInsurance.sol
+│   │   └── interfaces/
+│   │       ├── IPolymarketMarket.sol
+│   │       ├── IChainlinkOracle.sol
+│   │       └── IParlay.sol
+│   ├── test/
+│   │   ├── ParlayToken.t.sol
+│   │   ├── ParlayAMM.t.sol
+│   │   ├── ParlayOrderbook.t.sol
+│   │   ├── ParlayRouter.t.sol
+│   │   ├── integration/
+│   │   │   └── EndToEnd.t.sol
+│   │   └── mocks/
+│   │       ├── MockPolymarketMarket.sol
+│   │       └── MockUSDC.sol
+│   ├── script/
+│   │   ├── Deploy.s.sol           # Deployment script
+│   │   └── SetupTestnet.s.sol
+│   └── .env.example
+│
+├── backend/                       # Node.js backend
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── .env.example
+│   ├── src/
+│   │   ├── index.ts               # Entry point
+│   │   ├── config/
+│   │   │   ├── env.ts
+│   │   │   ├── contracts.ts       # Contract addresses & ABIs
+│   │   │   └── rpc.ts
+│   │   ├── api/
+│   │   │   ├── routes.ts
+│   │   │   ├── polymarket.ts      # Polymarket API wrapper
+│   │   │   ├── fairValue.ts       # Calculate fair values
+│   │   │   └── orderRouter.ts     # Route orders optimally
+│   │   ├── services/
+│   │   │   ├── blockchain.ts      # Ethers.js setup
+│   │   │   ├── hedging.ts         # Polymarket hedging
+│   │   │   ├── priceFeeds.ts      # Chainlink data
+│   │   │   └── monitor.ts         # Event monitoring
+│   │   ├── db/
+│   │   │   ├── models.ts          # Data models
+│   │   │   └── firebase.ts        # Firebase setup
+│   │   └── utils/
+│   │       ├── math.ts            # LMSR calculations
+│   │       ├── logger.ts
+│   │       └── cache.ts
+│   ├── tests/
+│   │   ├── api.test.ts
+│   │   ├── fairValue.test.ts
+│   │   └── hedging.test.ts
+│   └── dist/                      # Compiled output
+│
+├── frontend/                      # Vue.js frontend
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   ├── .env.example
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── App.vue
+│   │   ├── components/
+│   │   │   ├── ParleyBuilder/
+│   │   │   │   ├── MarketSelector.vue
+│   │   │   │   ├── OutcomeSelector.vue
+│   │   │   │   ├── OddsDisplay.vue
+│   │   │   │   └── StakeInput.vue
+│   │   │   ├── PositionManager/
+│   │   │   │   ├── PositionsList.vue
+│   │   │   │   ├── ExitModal.vue
+│   │   │   │   ├── FairValueDisplay.vue
+│   │   │   │   └── ResolutionProgress.vue
+│   │   │   ├── OrderbookViewer/
+│   │   │   │   ├── DepthChart.vue
+│   │   │   │   ├── TradeHistory.vue
+│   │   │   │   └── OrderbookTable.vue
+│   │   │   ├── Dashboard/
+│   │   │   │   ├── Portfolio.vue
+│   │   │   │   ├── Leaderboard.vue
+│   │   │   │   └── ActivityFeed.vue
+│   │   │   └── Common/
+│   │   │       ├── WalletConnect.vue
+│   │   │       ├── LoadingSpinner.vue
+│   │   │       └── ErrorAlert.vue
+│   │   ├── pages/
+│   │   │   ├── Dashboard.vue
+│   │   │   ├── Builder.vue
+│   │   │   ├── Positions.vue
+│   │   │   └── Markets.vue
+│   │   ├── stores/
+│   │   │   ├── user.ts            # Pinia store
+│   │   │   ├── markets.ts
+│   │   │   ├── contracts.ts
+│   │   │   └── trading.ts
+│   │   ├── hooks/
+│   │   │   ├── usePolymarketAPI.ts
+│   │   │   ├── useContractInteraction.ts
+│   │   │   ├── useFairValueCalc.ts
+│   │   │   └── useOrderRouting.ts
+│   │   ├── utils/
+│   │   │   ├── ethers.ts
+│   │   │   ├── prices.ts
+│   │   │   ├── odds.ts
+│   │   │   ├── polymarket-api.ts
+│   │   │   └── constants.ts
+│   │   ├── assets/
+│   │   │   ├── fonts/
+│   │   │   └── icons/
+│   │   └── styles/
+│   │       └── main.css
+│   └── dist/                      # Build output
+│
+├── docs/                          # Documentation
+│   ├── API.md                     # Backend API documentation
+│   ├── SMART_CONTRACTS.md         # Contract specifications
+│   ├── USER_GUIDE.md
+│   ├── SECURITY.md
+│   ├── DEPLOYMENT.md
+│   └── architecture/
+│       ├── system-design.md
+│       └── data-flows.md
+│
+├── docker-compose.yml             # Local development setup
+├── .github/                       # GitHub workflows
+│   ├── workflows/
+│   │   ├── test.yml               # Run tests on push
+│   │   ├── deploy.yml             # Deploy to testnet
+│   │   └── slither.yml            # Security scanning
+│   └── pull_request_template.md
+│
+└── .env.example                   # Root env vars
+
+
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+STEP-BY-STEP INITIALIZATION:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+WEEK 0: Setup & Configuration
+──────────────────────────────
+
+1. Create GitHub repository
+   ```bash
+   git init
+   git remote add origin https://github.com/yourusername/parlay-prediction-market.git
+   git branch -M main
+   ```
+
+2. Setup Foundry (for smart contracts)
+   ```bash
+   curl -L https://foundry.paradigm.xyz | bash
+   foundryup
+   ```
+
+3. Create contracts directory
+   ```bash
+   cd contracts
+   forge init --no-git --no-commit
+   forge install openzeppelin/openzeppelin-contracts
+   forge install openzeppelin/openzeppelin-contracts-upgradeable
+   ```
+
+4. Setup foundry.toml
+   ```toml
+   [profile.default]
+   src = "src"
+   out = "out"
+   libs = ["lib"]
+   remappings = [
+       "@openzeppelin/=lib/openzeppelin-contracts/"
+   ]
+
+   [rpc_endpoints]
+   base_sepolia = "https://sepolia.base.org"
+   base_mainnet = "https://mainnet.base.org"
+   ```
+
+5. Setup backend (Node.js)
+   ```bash
+   cd ../backend
+   npm init -y
+   npm install --save typescript ts-node ethers axios express cors dotenv
+   npm install --save-dev @types/node @types/express jest ts-jest
+   npx tsc --init
+   ```
+
+6. Setup frontend (Vue.js)
+   ```bash
+   cd ../frontend
+   npm create vite@latest . -- --template vue-ts
+   npm install
+   npm install tailwindcss postcss autoprefixer pinia wagmi ethers recharts
+   npx tailwindcss init -p
+   ```
+
+7. Create root .env.example
+   ```
+   # Smart Contracts
+   PRIVATE_KEY=your_private_key_here
+   ALCHEMY_API_KEY=your_api_key_here
+
+   # Backend
+   RPC_URL=https://sepolia.base.org
+   POLYMARKET_API=https://clob.polymarket.com
+
+   # Frontend
+   VITE_RPC_URL=https://sepolia.base.org
+   VITE_CHAIN_ID=84532
+   VITE_CONTRACT_PARLAY_TOKEN=0x...
+   VITE_CONTRACT_AMM=0x...
+   ```
+
+
+QUICK REFERENCE: COMMON COMMANDS
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Smart Contracts:
+```bash
+cd contracts/
+
+# Build
+forge build
+
+# Test with verbose output
+forge test -vvv
+
+# Run specific test
+forge test -k testMintParlay -vv
+
+# Deploy to Base Sepolia
+forge script script/Deploy.s.sol:DeployScript   --rpc-url $BASE_SEPOLIA_RPC   --private-key $PRIVATE_KEY   --broadcast   --verify   --verifier blockscout   --verifier-url https://base-sepolia.blockscout.com/api
+
+# Format code
+forge fmt
+
+# Gas report
+forge test --gas-report
+```
+
+Backend:
+```bash
+cd backend/
+
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Run tests
+npm test
+
+# Build for production
+npm run build
+
+# Deploy
+npm run deploy
+```
+
+Frontend:
+```bash
+cd frontend/
+
+# Install dependencies
+npm install
+
+# Development server (http://localhost:5173)
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Type check
+npm run type-check
+```
+
+
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+VIBE CODING BEST PRACTICES FOR THIS PROJECT:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+RULE 1: MAXIMUM SPECIFICITY IN PROMPTS
+────────────────────────────────────────
+
+❌ BAD:
+"Write a smart contract for parlay trading"
+
+✅ GOOD:
+"Create a Solidity smart contract inheriting from OpenZeppelin's ERC1155 that:
+1. Tracks parlay positions as NFTs with baseMarkets[], outcomes[], expiryTime
+2. Uses LMSR pricing: C(q) = b * ln(exp(q_yes/b) + exp(q_no/b)) where b=50000e18
+3. Implements sellToAMM() that calculates price with 0.3% fee
+4. Has emergency pause() function
+5. Uses SafeTransferLib for USDC transfers
+Reference: Uniswap v4 position management"
+
+
+RULE 2: PROVIDE REFERENCE IMPLEMENTATIONS
+──────────────────────────────────────────
+
+Include links to similar code:
+- OpenZeppelin contracts: https://github.com/OpenZeppelin/openzeppelin-contracts
+- Uniswap V4: https://github.com/Uniswap/v4-core
+- dYdX OrderBook: https://github.com/dydxprotocol/v4-chain
+
+
+RULE 3: ALWAYS INCLUDE PSEUDOCODE
+─────────────────────────────────
+
+```
+sellParlay(tokenId, quantity, minPrice):
+  1. GetFairValue(tokenId) -> fairValue
+  2. ammPrice = fairValue * (1 - slippage)
+  3. bestBid = orderbook.getBestBid(tokenId)
+  4. If bestBid > ammPrice and bestBid >= minPrice:
+       return router.sellToOrderbook(...)
+     Else if ammPrice >= minPrice:
+       return amm.sellToAMM(...)
+     Else:
+       revert("Price too low")
+```
+
+
+RULE 4: TEST GENERATION ALONGSIDE CODE
+──────────────────────────────────────
+
+When asking for a contract, also ask for:
+"Generate Foundry tests that cover:
+1. Normal case: sell parlay at fair value
+2. Edge case: sell 0 quantity
+3. Edge case: price too low
+4. Fuzz test: random prices and quantities
+5. Integration: with mock Polymarket oracle"
+
+
+RULE 5: ALWAYS AUDIT BEFORE MAINNET
+───────────────────────────────────
+
+Every vibe-coded contract MUST:
+1. Pass 90%+ test coverage
+2. Run through Slither static analysis
+3. Manual code review (especially financial math)
+4. Formal audit (Certik or OpenZeppelin) before mainnet
+
+
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+DEPLOYMENT CHECKLIST:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Pre-Deployment (Week 11):
+☐ All tests passing (>90% coverage)
+☐ Slither analysis: no critical issues
+☐ Manual code review complete
+☐ Gas optimizations done (<200k per tx)
+☐ Emergency functions tested
+☐ Basescan contract verification configured
+
+Deployment Day (Week 12):
+☐ Fund deployer wallet with Base Sepolia ETH
+☐ Set PRIVATE_KEY in .env
+☐ Run deployment script
+☐ Verify contracts on Basescan
+☐ Update frontend .env with contract addresses
+☐ Test frontend against deployed contracts
+
+Post-Deployment (Week 12):
+☐ Setup monitoring (contract events)
+☐ Setup error alerting (Sentry)
+☐ Create Discord announcement
+☐ Recruit first beta testers
+☐ Monitor gas prices and adjust
+☐ Document any issues
+
+Go-Live Checklist:
+☐ Smart contracts deployed ✓
+☐ Frontend accessible ✓
+☐ Backend API responding ✓
+☐ Testnet ETH faucet configured ✓
+☐ Discord community ready ✓
+☐ Monitoring alerts active ✓
+☐ Insurance fund initialized ✓
+
+
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+MONITORING & METRICS:
+═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+Real-time Dashboard (Week 12):
+
+Key Metrics:
+1. TVL (Total Value Locked) - update every block
+2. Daily Active Users - count unique addresses
+3. Total Volume - sum of all parlay stakes + exits
+4. Average Position Size - TVL / number of active positions
+5. Win Rate - % of positions that paid out >stake
+6. Exit Rate - % of positions exited vs held to maturity
+7. AMM vs Orderbook Split - % volume through each venue
+8. Hedging Efficiency - avg hedge cost as % of protected value
+9. Uptime - % of time contracts accessible
+10. Gas Costs - avg gas per transaction
+
+Tools for Monitoring:
+- Etherscan Events API
+- Dune Analytics dashboard
+- Datadog/New Relic
+- Custom GraphQL indexer (The Graph)
+- Sentry for errors
+
+Example queries:
+```sql
+SELECT
+  COUNT(DISTINCT user) as daily_users,
+  SUM(stake_amount) as daily_volume,
+  AVG(exit_price/fair_value) as avg_execution_quality
+FROM parlays
+WHERE created_at > NOW() - INTERVAL 24 HOURS
+```

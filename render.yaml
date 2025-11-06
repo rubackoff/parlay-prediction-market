@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: parlay-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    region: oregon
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: PORT
+        value: 3002
+      - key: POLYMARKET_API
+        value: https://clob.polymarket.com
+      - key: POLYROUTER_BASE
+        value: https://api.polyrouter.io/functions/v1
+      - key: POLYROUTER_API_KEY
+        sync: false

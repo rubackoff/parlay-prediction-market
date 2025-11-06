@@ -1,0 +1,32 @@
+# Node
+node_modules/
+.npm/
+logs/
+*.log
+
+# Build outputs
+/dist/
+/build/
+/.cache/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Foundry
+contracts/out/
+contracts/lib/
+
+# Backend
+backend/dist/
+
+# Frontend
+frontend/dist/
+frontend/.vite/
