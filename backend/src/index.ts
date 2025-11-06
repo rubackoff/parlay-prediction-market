@@ -15,8 +15,23 @@ app.use((req, _res, next) => {
   next();
 });
 
+app.get('/', (_req: Request, res: Response) => {
+  res.json({ 
+    name: 'Parlay Prediction Market API',
+    version: '0.1.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      resolve: '/api/resolve?market_id=516725',
+      markets: '/api/markets',
+      books: 'POST /api/books',
+      polyrouter: '/api/polyrouter/platforms'
+    }
+  });
+});
+
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, service: 'parlay-backend', ts: Date.now() });
+  res.json({ status: 'ok', timestamp: Date.now() });
 });
 
 app.use('/api', api);
