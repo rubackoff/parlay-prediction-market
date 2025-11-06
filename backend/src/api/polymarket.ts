@@ -290,10 +290,7 @@ export async function getOrderbookWithType(id: string, type?: 'token' | 'asset')
         `/book?market=${encodeURIComponent(id)}`,
         `/api/markets/${id}/orderbook`,
       ]);
-      }
     }
-
-    // ... (rest of the code remains the same)
 
     // Normalize typical shapes: { bids:[[price,size],...], asks:[[price,size],...] } or { bids:[{p,q}], asks:[{p,q}] }
     const mapLevels = (arr: any): NormalizedOrderbookLevel[] => {
